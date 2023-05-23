@@ -9,7 +9,7 @@ This repository contains the code and resources associated with the scientific p
 The repository is organized into two directories:
 
 - `ORF_calling`: Contains scripts related to preprocessing the riboseq reads and detecting ORFs
-- `Analysis`: Contains scripts to perform the analyses described in the paper.
+- `ORF_comparison`: Contains scripts to perform the analyses described in the paper.
 
 Each directory contains its own readme describing how to use the scripts.
 
