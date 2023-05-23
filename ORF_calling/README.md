@@ -1,6 +1,7 @@
 # ORF_calling
 
-The commands in `orf_calling.sh` can be used to recreate the ORF prediction results. This file contains all commands for the called tools. In short, first some indexes/reference files were created for bowtie2, STAR, ORFquant, PRICE and Ribotricer. Quality control and trimming of the reads was done using Trim Galore, followed by contaminant removal with bowtie2 and mapping by STAR. Then ORFquant, PRICE, Ribo-TISH and Ribotricer were used for the orf calling. 
+The commands in `orf_calling.sh` can be used to recreate the ORF prediction results. This file contains all commands for the called tools. In short, first some indexes/reference files were created for bowtie2, STAR, ORFquant, PRICE and Ribotricer. Quality control and trimming of the reads was done using Trim Galore, followed by contaminant removal with bowtie2 and mapping by STAR. Then ORFquant, PRICE, Ribo-TISH and Ribotricer were used for the ORF calling. 
+
 - ORFquant was used as R-package, the sessioninfo is available in `orfquant_sessioninfo.txt`.
 - PRICE was installed as part of the gedi package.
 - Ribo-TISH was installed in a conda environment. The installed packages are available in `conda_ribotish.txt`
