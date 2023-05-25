@@ -1,0 +1,255 @@
+---
+title: "ORF visualization"
+output: html_notebook
+---
+# Load libraries
+```{r}
+library(Gviz)
+library(rtracklayer)
+library(AnnotationDbi)
+library(RColorBrewer)
+library(dplyr)
+library(svglite)
+```
+
+
+# Define global variables
+```{r}
+options(ucscChromosomeNames = FALSE) # Use annotation like "2" instead of "chr2"
+
+save_path <- "" # Directory: save location for plots and data
+gtf_file <- "" # File: reference GTF
+ORFq_P_sites_plus <- "" # File: ORFquant p-sites plus strand
+ORFq_P_sites_minus <- "" # File: ORFquant p-sites minus strand
+PRICE_P_sites_plus <- "" # File: PRICE p-sites plus strand
+PRICE_P_sites_minus <- "" # File: PRICE p-sites minus strand
+
+# Load data created by orf_callers_comparison.Rmd
+load(paste0(save_path, "/orfs_separate.RData"))
+custom_annotation <- import(gtf_file)  # GTF from Ensembl102
+genome(custom_annotation) <- "hg38"
+seqlevels(custom_annotation) <- seqlevelsInUse(custom_annotation)
+txdb <- GenomicFeatures::makeTxDbFromGFF(gtf_file)
+
+transcript_track <- GeneRegionTrack(txdb, genome = "hg38", name = "Transcripts", showId = F, rotation.title = 0, fill = "black", col = "black")
+colors = c(brewer.pal(8, "Set2"))
+```
+
+# Define functions
+```{r}
+get_transcripts <- function(orf_list, gen_id) {
+  # Select all ORFs from a given gene id
+  m_cols <- mcols(orf_list) %>% as.data.frame() %>% 
+    mutate(orf_names = names(orf_list)) %>% 
+    dplyr::filter(gene_id == gen_id)
+  sel_orf <- orf_list[m_cols$orf_names] %>% as.data.frame() %>% 
+    group_by(group_name) %>% mutate(exon = row_number())
+  sel_orf_g <- sel_orf %>% makeGRangesFromDataFrame()
+  sel_orf_g$exon <- sel_orf$exon
+  genome(sel_orf_g) <- "hg38"
+  return(sel_orf_g)
+}
+
+get_psite_data <- function(p_site_file) {
+  #Function to color P-sites by their genomic reading frame
+  p_sites <- read.table(p_site_file, 
+                        col.names = c("chromosome", "start", "end", "val"))
+  grange_p <- GRanges(p_sites[,1:3]) 
+  genome(grange_p) <- "hg38"
+  p_sites$group1 <- 0
+  p_sites$group2 <- 0
+  p_sites$group3 <- 0
+  p_sites <- within(p_sites, group1[start %% 3 == 0] <- val[start %% 3 == 0])
+  p_sites <- within(p_sites, group2[start %% 3 == 1] <- val[start %% 3 == 1])
+  p_sites <- within(p_sites, group3[start %% 3 == 2] <- val[start %% 3 == 2])
+  values(grange_p) <- p_sites[,5:7]
+  return(grange_p)
+}
+```
+
+# Declare tracks
+```{r}
+ORFq_P_sites_plus_data <- get_psite_data(ORFq_P_sites_plus)
+PRICE_P_sites_plus_data <- get_psite_data(PRICE_P_sites_plus)
+ORFq_P_sites_minus_data <- get_psite_data(ORFq_P_sites_minus)
+PRICE_P_sites_minus_data <- get_psite_data(PRICE_P_sites_minus)
+
+dtrack_ORFq_Psites_plus <- DataTrack(range=ORFq_P_sites_plus_data,
+                                     name = "P-sites\nORFquant",
+                                     type = "h",
+                                     ylim = c(0,25000),
+                                     col.axis = "black",
+                                     col = NULL,
+                                     col.title = "black",
+                                     yTicksAt = c(0, 25000),
+                                     groups = c(1,2,3),
+                                     col = c(colors[2], colors[1], colors[3]),
+                                     background.panel = "#f5f9fc",
+                                     fill.histogram = colors[2],
+                                     col = colors[2],
+                                     lwd = 1)
+
+dtrack_PRICE_Psites_plus <- DataTrack(range=PRICE_P_sites_plus_data,
+                                    name = "P-sites\nPRICE",
+                                     type = "h",
+                                     ylim = c(0,25000),
+                                     col.axis = "black",
+                                     col = NULL,
+                                     col.title = "black",
+                                     yTicksAt = c(0, 25000),
+                                     groups = c(1,2,3),
+                                     col = c(colors[2], colors[1], colors[3]),
+                                     background.panel = "#fcf6f5",
+                                     fill.histogram = colors[1],
+                                     col = colors[1],
+                                     lwd = 1)
+
+dtrack_ORFq_Psites_minus <- DataTrack(range=ORFq_P_sites_minus_data,
+                                     name = "P-sites\nORFquant",
+                                     type = "h",
+                                     ylim = c(0,25000),
+                                     col.axis = "black",
+                                     col = NULL,
+                                     col.title = "black",
+                                     yTicksAt = c(0, 25000),
+                                     groups = c(1,2,3),
+                                     col = c(colors[2], colors[1], colors[3]),
+                                     background.panel = "#f5f9fc",
+                                     fill.histogram = colors[2],
+                                     col = colors[2],
+                                     lwd = 1)
+
+dtrack_PRICE_Psites_minus <- DataTrack(range=PRICE_P_sites_minus_data,
+                                    name = "P-sites\nPRICE",
+                                     type = "h",
+                                     ylim = c(0,25000),
+                                     col.axis = "black",
+                                     col = NULL,
+                                     col.title = "black",
+                                     yTicksAt = c(0, 25000),
+                                     groups = c(1,2,3),
+                                     col = c(colors[2], colors[1], colors[3]),
+                                     background.panel = "#fcf6f5",
+                                     fill.histogram = colors[1],
+                                     col = colors[1],
+                                     lwd = 1)
+```
+
+# Figure SPTBN1 (figure 3 panel D)
+```{r, fig.height = 2.2, fig.width = 3}
+orfq_transcripts <- get_transcripts(orfs_separate[[1]][[3]], "ENSG00000115306")
+price_transcripts <- get_transcripts(orfs_separate[[2]][[3]], "ENSG00000115306")
+tish_transcripts <- get_transcripts(orfs_separate[[3]][[3]], "ENSG00000115306")
+tricer_transcripts <- get_transcripts(orfs_separate[[4]][[3]], 
+                                      "ENSG00000115306")
+
+start_pos = 54526372
+end_pos =   54526600
+chr = "2"
+gen <- unique(genome(price_transcripts))
+
+ORF_track <- AnnotationTrack(price_transcripts, genome = gen, showId = F, 
+                             shape = "box", name = "ORFs\nPRICE", 
+                             fill = "salmon", col = "salmon", 
+                             rotation.title = 0)
+ORF_track_ORFq <- AnnotationTrack(orfq_transcripts, genome = gen, showId = F, 
+                                  shape = "box", name = "ORFs\nORFquant", 
+                                  fill = "cornflowerblue", 
+                                  col = "cornflowerblue", rotation.title = 0)
+ORF_track_tish <- AnnotationTrack(tish_transcripts, genome = gen, showId = F, 
+                                  shape = "box", name = "ORFs\nRibo-TISH", 
+                                  fill = "red", col = "red", 
+                                  rotation.title = 0)
+ORF_track_tricer <- AnnotationTrack(tricer_transcripts, genome = gen, 
+                                    showId = F, shape = "box", 
+                                    name = "ORFs\nRibotricer", fill = "green", 
+                                    col = "green", rotation.title = 0)
+
+# P sites data tracks
+displayPars(dtrack_ORFq_Psites_plus) <- 
+  list(ylim = c(0,40), yTicksAt = c(0, 40), 
+       col = c(colors[2], colors[1], colors[3]), 
+       groups = c("+1", "+2", "+3"), legend=F)
+displayPars(dtrack_PRICE_Psites_plus) <- 
+  list(ylim = c(0,40), yTicksAt = c(0, 40), 
+       col = c(colors[2], colors[1], colors[3]), 
+       groups = c("+1", "+2", "+3"), legend=F)
+displayPars(transcript_track) <- list(strand = "+")
+
+svglite(paste0(save_path, "/sorf.svg"), width = 9.5, height = 4.16)
+plotTracks(list(dtrack_ORFq_Psites_plus,
+                dtrack_PRICE_Psites_plus,
+                ORF_track_ORFq,
+                ORF_track,
+                ORF_track_tish,
+                ORF_track_tricer,
+                transcript_track), 
+           from = start_pos, 
+           to = end_pos, showExonId=F, chromosome = chr, stacking = "squish", 
+           collapse = FALSE, 
+           sizes = c(0.5,0.5, 0.2/6,0.2/6,0.2/6*3,0.2, 0.2/6*10),
+           geneSymbols = T, transcriptAnnotation = "transcript_id", 
+           col.title = "black", background.title = "white", strand = "+",
+           add35=T, showTitle=T, cex.title = 0.8, cex.axis = 0.5)
+dev.off()
+```
+
+
+# Figure TUG1 (figure 3 panel E)
+```{r}
+orfq_transcripts <- get_transcripts(orfs_separate[[1]][[3]], "ENSG00000253352")
+price_transcripts <- get_transcripts(orfs_separate[[2]][[3]], "ENSG00000253352")
+tish_transcripts <- get_transcripts(orfs_separate[[3]][[3]], "ENSG00000253352")
+tricer_transcripts <- get_transcripts(orfs_separate[[4]][[3]], 
+                                      "ENSG00000253352")
+
+start_pos = 30969288
+end_pos = 30969830
+chr = as.numeric(runValue(seqnames(price_transcripts)))
+gen <- unique(genome(price_transcripts))
+
+ORF_track <- AnnotationTrack(price_transcripts, genome = gen, showId = F, 
+                             shape = "box", name = "ORFs\nPRICE", 
+                             fill = "salmon", col = "salmon", 
+                             rotation.title = 0)
+ORF_track_ORFq <- AnnotationTrack(orfq_transcripts, genome = gen, showId = F, 
+                                  shape = "box", name = "ORFs\nORFquant", 
+                                  fill = "cornflowerblue", 
+                                  col = "cornflowerblue", rotation.title = 0)
+ORF_track_tish <- AnnotationTrack(tish_transcripts, genome = gen, showId = F, 
+                                  shape = "box", name = "ORFs\nRibo-TISH", 
+                                  fill = "red", col = "red", 
+                                  rotation.title = 0)
+ORF_track_tricer <- AnnotationTrack(tricer_transcripts, genome = gen, 
+                                    showId = F, shape = "box", 
+                                    name = "ORFs\nRibotricer", fill = "green", 
+                                    col = "green", rotation.title = 0)
+
+# P sites data tracks
+displayPars(dtrack_ORFq_Psites_plus) <- 
+  list(ylim = c(0,40), yTicksAt = c(0, 80), 
+       col = c(colors[2], colors[1], colors[3]), 
+       groups = c("+1", "+2", "+3"), legend=F)
+displayPars(dtrack_PRICE_Psites_plus) <- 
+  list(ylim = c(0,40), yTicksAt = c(0, 80), 
+       col = c(colors[2], colors[1], colors[3]), 
+       groups = c("+1", "+2", "+3"), legend=F)
+displayPars(transcript_track) <- list(strand = "+")
+
+svglite(paste0(save_path, "/tug1.svg"), width = 9.5, height = 4.82)
+plotTracks(list(dtrack_ORFq_Psites_plus,
+                dtrack_PRICE_Psites_plus,
+                ORF_track_ORFq,
+                ORF_track,
+                ORF_track_tish,
+                ORF_track_tricer,
+                transcript_track), 
+           from = start_pos, 
+           to = end_pos, showExonId=F, chromosome = chr, stacking = "squish", 
+           collapse = FALSE, 
+           sizes = c(0.5,0.5, 0.2/6,0.2/6*2,0.2/6,0.2/6*11, 0.2/6*14),
+           geneSymbols = T, transcriptAnnotation = "transcript_id", 
+           col.title = "black", background.title = "white", strand = "+",
+           add35=T, showTitle=T, cex.title = 0.8, cex.axis = 0.5)
+dev.off()
+```
